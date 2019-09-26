@@ -2,6 +2,7 @@ package autotest
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,10 +32,9 @@ func Watch(folder string, fileProcessor func(string) error) error {
 			case event := <-w.Event:
 				debouncedChange(event)
 			case filename := <-fileReadyToProcess:
-				start := time.Now()
-				fmt.Println("Begin processing incoming file", filename)
-				fileProcessor(filename)
-				fmt.Println("End processing incoming file", filename, time.Since(start))
+				if err := fileProcessor(filename); err != nil {
+					log.Println(err)
+				}
 			case <-w.Closed:
 				return
 			}
@@ -54,14 +54,14 @@ func getWatcher(folder string) (*watcher.Watcher, error) {
 }
 
 // debounceChange marks a file as ready to process after remaining unchanged for a given duration.
-func debounceChange(interval time.Duration, readyToProcess chan string) func(e watcher.Event) error {
+func debounceChange(interval time.Duration, readyToProcess chan string) func(e watcher.Event) {
 	timer := make(map[string]*time.Timer)
 	var tMutex sync.Mutex
 
-	return func(e watcher.Event) error {
+	return func(e watcher.Event) {
 		folder := getValidatedGoFolder(&e)
 		if folder == "" {
-			return nil
+			return
 		}
 		tMutex.Lock()
 		t, ok := timer[folder]
@@ -86,13 +86,13 @@ func debounceChange(interval time.Duration, readyToProcess chan string) func(e w
 			tMutex.Unlock()
 			t.Reset(interval)
 		}
-		return nil
+		return
 	}
 }
 
 func getValidatedGoFolder(e *watcher.Event) string {
 	filename := getWatcherPath(e)
-	return getGoFolder(filename, e.FileInfo)
+	return getGoFolder(filename)
 }
 
 func getWatcherPath(e *watcher.Event) string {
@@ -105,10 +105,10 @@ func getWatcherPath(e *watcher.Event) string {
 	return filename
 }
 
-func getGoFolder(filename string, fileInfo os.FileInfo) string {
+func getGoFolder(filename string) string {
 	folder := filepath.Dir(filename)
-	if (fileInfo != nil && fileInfo.IsDir()) || !strings.Contains(folder, "/testdata") || filepath.Ext(filename) != ".go" {
-		return ""
+	if filepath.Ext(filename) == ".go" {
+		return folder
 	}
-	return folder
+	return ""
 }
