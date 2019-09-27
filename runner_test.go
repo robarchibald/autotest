@@ -1,21 +1,73 @@
 package autotest
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/EndFirstCorp/execfactory"
 )
 
+var testOutput = `{"Time":"2019-09-25T18:24:29.864601-07:00","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}
+{"Time":"2019-09-25T18:24:29.864909-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}
+{"Time":"2019-09-25T18:24:29.864953-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"stuff\n"}
+{"Time":"2019-09-25T18:24:29.864977-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"--- PASS: TestHi (0.00s)\n"}
+{"Time":"2019-09-25T18:24:29.864987-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}
+{"Time":"2019-09-25T18:24:29.865004-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"PASS\n"}
+{"Time":"2019-09-25T18:24:29.865088-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"ok  \tgithub.com/6degreeshealth/autotest/cmd\t0.006s\n"}
+{"Time":"2019-09-25T18:24:29.865105-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Elapsed":0.006}`
+
+var coverageOutput = `github.com/6degreeshealth/autotest/runner.go:37:	RunTests		100.0%
+github.com/6degreeshealth/autotest/runner.go:58:	runGoTool		100.0%
+github.com/6degreeshealth/autotest/runner.go:64:	getTestEvents		100.0%
+github.com/6degreeshealth/autotest/runner.go:73:	parseTestEventLine	100.0%
+github.com/6degreeshealth/autotest/runner.go:84:	getCoverage		100.0%
+github.com/6degreeshealth/autotest/runner.go:99:	parseCoverageLine	100.0%
+github.com/6degreeshealth/autotest/runner.go:109:	getFilename		100.0%
+github.com/6degreeshealth/autotest/runner.go:113:	parseNameAndPercent	100.0%
+github.com/6degreeshealth/autotest/runner.go:123:	parsePercent		83.3%
+total:							(statements)		35.5%`
+
+func TestRunTests(t *testing.T) {
+	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
+		{CombinedOutputVal: []byte(testOutput)},
+		{CombinedOutputVal: []byte(coverageOutput)},
+	})
+	if err := RunTests("folder"); err != nil {
+		t.Fatal(err)
+	}
+	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
+		{CombinedOutputErr: errors.New("test")},
+	})
+	if err := RunTests("folder"); err == nil || err.Error() != "test" {
+		t.Error("Expected to error at first runGoTool", err)
+	}
+	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
+		{CombinedOutputVal: []byte{}},
+		{CombinedOutputErr: errors.New("test")},
+	})
+	if err := RunTests("folder"); err == nil || err.Error() != "test" {
+		t.Error("Expected to error at second runGoTool", err)
+	}
+}
+
+func TestRunToTool(t *testing.T) {
+	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
+		{CombinedOutputErr: errors.New("test")},
+		{CombinedOutputVal: []byte("hello")},
+		{CombinedOutputErr: &execfactory.ExitError{}},
+	})
+	if _, err := runGoTool("folder", nil); err == nil || err.Error() != "test" {
+		t.Error("Expected correct error", err)
+	}
+	if out, err := runGoTool("folder", nil); err != nil || string(out) != "hello" {
+		t.Error("Expected correct error", err, string(out))
+	}
+}
+
 func TestGetTestEvents(t *testing.T) {
-	output := `{"Time":"2019-09-25T18:24:29.864601-07:00","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}
-	{"Time":"2019-09-25T18:24:29.864909-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}
-	{"Time":"2019-09-25T18:24:29.864953-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"stuff\n"}
-	{"Time":"2019-09-25T18:24:29.864977-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"--- PASS: TestHi (0.00s)\n"}
-	{"Time":"2019-09-25T18:24:29.864987-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}
-	{"Time":"2019-09-25T18:24:29.865004-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"PASS\n"}
-	{"Time":"2019-09-25T18:24:29.865088-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"ok  \tgithub.com/6degreeshealth/autotest/cmd\t0.006s\n"}
-	{"Time":"2019-09-25T18:24:29.865105-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Elapsed":0.006}`
-	if events := getTestEvents([]byte(output)); len(events) != 8 {
+	if events := getTestEvents([]byte(testOutput)); len(events) != 8 {
 		t.Error("expected to have parsed 8 lines", len(events))
 	}
 }
@@ -101,8 +153,10 @@ func TestParseNameAndPercent(t *testing.T) {
 	if name, percent := parseNameAndPercent("me		95.4%"); name != "me" || percent != float32(95.4) {
 		t.Error("Expected correct values", name, percent)
 	}
-
-	if name, percent := parseNameAndPercent("invalid"); name != "invalid" || percent != float32(0) {
+	if name, percent := parseNameAndPercent("invalidWithoutTab"); name != "invalidWithoutTab" || percent != float32(0) {
+		t.Error("Expected correct values", name, percent)
+	}
+	if name, percent := parseNameAndPercent("invalid	"); name != "invalid" || percent != float32(0) {
 		t.Error("Expected correct values", name, percent)
 	}
 }

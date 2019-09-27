@@ -1,2 +1,6 @@
+github.com/EndFirstCorp/execfactory v0.0.0-20190927155838-e30d24d5771f h1:cSBsTgPHoD3HIC2x0dbvQxF8j1w93z6S6jkid2qJ004=
+github.com/EndFirstCorp/execfactory v0.0.0-20190927155838-e30d24d5771f/go.mod h1:NiSw4A+EwiI5hB8KlAQU3zr79gFhC9OPTvbk2f3v2FA=
+github.com/EndFirstCorp/execfactory v0.0.0-20190927212604-db99c1265993 h1:EsLHnYiwgGq9XMA8MlE5sqLe41gwljdb12rozRQqxMs=
+github.com/EndFirstCorp/execfactory v0.0.0-20190927212604-db99c1265993/go.mod h1:NiSw4A+EwiI5hB8KlAQU3zr79gFhC9OPTvbk2f3v2FA=
 github.com/radovskyb/watcher v1.0.7 h1:AYePLih6dpmS32vlHfhCeli8127LzkIgwJGcwwe8tUE=
 github.com/radovskyb/watcher v1.0.7/go.mod h1:78okwvY5wPdzcb1UYnip1pvrZNIVEIh/Cm+ZuvsUYIg=

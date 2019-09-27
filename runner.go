@@ -31,11 +31,11 @@ type coverage struct {
 	CoveragePercent float32
 }
 
-var exec = execfactory.OS
+var exec = execfactory.NewOSCreator()
 
 // RunTests will run a new set of tests whenever a file changes
 func RunTests(folder string) error {
-	fmt.Println("Changed file", folder)
+	fmt.Println("Changed folder:", folder)
 	out, err := runGoTool(folder, runCoverageArgs)
 	if err != nil {
 		return err
@@ -58,13 +58,7 @@ func RunTests(folder string) error {
 func runGoTool(folder string, args []string) ([]byte, error) {
 	cmd := exec.Command("go", args...)
 	cmd.SetDir(folder)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			fmt.Println("found exit error", ee)
-		}
-	}
-	return out, err
+	return cmd.CombinedOutput()
 }
 
 func getTestEvents(output []byte) []testEvent {
