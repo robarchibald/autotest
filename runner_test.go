@@ -9,14 +9,14 @@ import (
 	"github.com/EndFirstCorp/execfactory"
 )
 
-var testOutput = `{"Time":"2019-09-25T18:24:29.864601-07:00","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}
-{"Time":"2019-09-25T18:24:29.864909-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}
-{"Time":"2019-09-25T18:24:29.864953-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"stuff\n"}
-{"Time":"2019-09-25T18:24:29.864977-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"--- PASS: TestHi (0.00s)\n"}
-{"Time":"2019-09-25T18:24:29.864987-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}
-{"Time":"2019-09-25T18:24:29.865004-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"PASS\n"}
-{"Time":"2019-09-25T18:24:29.865088-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"ok  \tgithub.com/6degreeshealth/autotest/cmd\t0.006s\n"}
-{"Time":"2019-09-25T18:24:29.865105-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Elapsed":0.006}`
+var testOutput = `{"Time":"2019-09-25T18:24:29.864601Z","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}
+{"Time":"2019-09-25T18:24:29.864909Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}
+{"Time":"2019-09-25T18:24:29.864953Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"stuff\n"}
+{"Time":"2019-09-25T18:24:29.864977Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"--- PASS: TestHi (0.00s)\n"}
+{"Time":"2019-09-25T18:24:29.864987Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}
+{"Time":"2019-09-25T18:24:29.865004Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"PASS\n"}
+{"Time":"2019-09-25T18:24:29.865088Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"ok  \tgithub.com/6degreeshealth/autotest/cmd\t0.006s\n"}
+{"Time":"2019-09-25T18:24:29.865105Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Elapsed":0.006}`
 
 var coverageOutput = `github.com/6degreeshealth/autotest/runner.go:37:	RunTests		100.0%
 github.com/6degreeshealth/autotest/runner.go:58:	runGoTool		100.0%
@@ -80,18 +80,18 @@ func TestParseTestEventLine(t *testing.T) {
 	}{
 		{
 			"Run action",
-			`{"Time":"2019-09-25T18:24:00.000000-07:00","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.Local), Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
+			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
 		},
 		{
 			"Output action",
-			`{"Time":"2019-09-25T18:24:00.000000-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.Local), Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"},
+			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"},
 		},
 		{
 			"Test pass action",
-			`{"Time":"2019-09-25T18:24:00.000000-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.Local), Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Elapsed: 0},
+			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Elapsed: 0},
 		},
 		{
 			"Bare line",
