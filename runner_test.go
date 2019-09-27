@@ -1,7 +1,9 @@
 package autotest
 
 import (
+	"reflect"
 	"testing"
+	"time"
 )
 
 func TestGetTestEvents(t *testing.T) {
@@ -15,6 +17,56 @@ func TestGetTestEvents(t *testing.T) {
 	{"Time":"2019-09-25T18:24:29.865105-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Elapsed":0.006}`
 	if events := getTestEvents([]byte(output)); len(events) != 8 {
 		t.Error("expected to have parsed 8 lines", len(events))
+	}
+}
+
+func TestParseTestEventLine(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want *testEvent
+	}{
+		{
+			"Run action",
+			`{"Time":"2019-09-25T18:24:00.000000-07:00","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.Local), Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
+		},
+		{
+			"Output action",
+			`{"Time":"2019-09-25T18:24:00.000000-07:00","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.Local), Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"},
+		},
+		{
+			"Test pass action",
+			`{"Time":"2019-09-25T18:24:00.000000-07:00","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.Local), Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Elapsed: 0},
+		},
+		{
+			"Bare line",
+			"bare line",
+			&testEvent{Output: "bare line"},
+		},
+		{
+			"Bogus JSON",
+			`{{}`,
+			&testEvent{Output: "{{}"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseTestEventLine([]byte(tt.line)); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseTestEventLine() = \n%v, want \n%v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetCoverage(t *testing.T) {
+	lines := `line1
+	line2
+	github.com/6degreeshealth/autotest/cmd/hi.go:3:		me		95.4%`
+	if numLines := len(getCoverage([]byte(lines))); numLines != 3 {
+		t.Error("expected 3 coverage lines", numLines)
 	}
 }
 

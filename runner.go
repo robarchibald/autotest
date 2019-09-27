@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/EndFirstCorp/execfactory"
 )
 
 var runCoverageArgs = []string{"test", "-json", "-short", "-coverprofile", "cover.out", "-timeout", "5s"}
@@ -29,6 +30,8 @@ type coverage struct {
 	Function        string
 	CoveragePercent float32
 }
+
+var exec = execfactory.OS
 
 // RunTests will run a new set of tests whenever a file changes
 func RunTests(folder string) error {
@@ -54,7 +57,7 @@ func RunTests(folder string) error {
 
 func runGoTool(folder string, args []string) ([]byte, error) {
 	cmd := exec.Command("go", args...)
-	cmd.Dir = folder
+	cmd.SetDir(folder)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
