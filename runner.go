@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/EndFirstCorp/execfactory"
 )
@@ -16,8 +15,15 @@ import (
 var runCoverageArgs = []string{"test", "-json", "-short", "-coverprofile", "cover.out", "-timeout", "5s"}
 var getCoverageArgs = []string{"tool", "cover", "-func=cover.out"}
 
+type groupedTestEvent struct {
+	Elapsed    float64
+	Package    string
+	Test       string
+	TestResult string
+	Output     string
+}
+
 type testEvent struct {
-	Time    time.Time // encodes as an RFC3339-format string
 	Action  string
 	Package string
 	Test    string
@@ -36,38 +42,101 @@ var exec = execfactory.NewOSCreator()
 // RunTests will run a new set of tests whenever a file changes
 func RunTests(folder string) error {
 	fmt.Println("Changed folder:", folder)
-	out, err := runGoTool(folder, runCoverageArgs)
-	if err != nil {
-		return err
+	out, err, exitCode := runGoTool(folder, runCoverageArgs)
+	if exitCode == 2 { // build failure
+		return fmt.Errorf("Error running build\n%v", string(err))
 	}
-	for _, event := range getTestEvents(out) {
-		fmt.Println(event)
-	}
+	printTestEvents(getTestEvents(out))
 
-	out, err = runGoTool(folder, getCoverageArgs)
-	if err != nil {
-		return err
+	out, _, _ = runGoTool(folder, getCoverageArgs)
+	printCoverage(getCoverage(out))
+
+	return nil
+}
+
+func printTestEvents(groupedEvents []groupedTestEvent) {
+	for _, event := range groupedEvents {
+		fmt.Println(event.Elapsed, event.Package, event.Test, event.TestResult, strings.TrimSpace(event.Output))
 	}
-	for _, coverage := range getCoverage(out) {
+}
+
+func hasAnyPrefix(input string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(input, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func printCoverage(coverageItems []coverage) {
+	for _, coverage := range coverageItems {
 		fmt.Println(coverage)
 	}
-
-	return err
 }
 
-func runGoTool(folder string, args []string) ([]byte, error) {
+func runGoTool(folder string, args []string) ([]byte, []byte, int) {
+	var exitCode int
 	cmd := exec.Command("go", args...)
 	cmd.SetDir(folder)
-	return cmd.CombinedOutput()
+	out, err, exitCode := cmd.SeparateOutput()
+	return out, err, exitCode
 }
 
-func getTestEvents(output []byte) []testEvent {
+func getTestEvents(output []byte) []groupedTestEvent {
 	results := []testEvent{}
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		results = append(results, *parseTestEventLine(scanner.Bytes()))
 	}
-	return results
+	return groupTestEvents(results)
+}
+
+func groupTestEvents(events []testEvent) []groupedTestEvent {
+	type packageTest struct {
+		Package string
+		Test    string
+	}
+
+	orderedTests := []packageTest{}
+	grouped := map[packageTest][]testEvent{}
+	for _, event := range events {
+		pt := packageTest{event.Package, event.Test}
+		if _, ok := grouped[pt]; !ok {
+			orderedTests = append(orderedTests, pt)
+		}
+		grouped[pt] = append(grouped[pt], event)
+	}
+
+	orderedAndGrouped := []groupedTestEvent{}
+	for _, test := range orderedTests {
+		orderedAndGrouped = append(orderedAndGrouped, *getGroupedTestEvent(grouped[test]))
+	}
+	return orderedAndGrouped
+}
+
+func getGroupedTestEvent(events []testEvent) *groupedTestEvent {
+	var pkg, test, testResult string
+	var elapsed float64
+	var buf strings.Builder
+	for _, event := range events {
+		pkg = event.Package
+		test = event.Test
+		if event.Action == "run" {
+			continue
+		}
+		if event.Action == "output" && hasAnyPrefix(event.Output, []string{"===", "---", "PASS", "ok  \t", "FAIL", "SKIPPED"}) {
+			continue
+		}
+		if event.Action == "pass" || event.Action == "skip" || event.Action == "fail" {
+			testResult = event.Action
+			elapsed = event.Elapsed
+		}
+		if event.Action == "output" {
+			buf.WriteString(event.Output)
+		}
+	}
+	return &groupedTestEvent{Elapsed: elapsed, TestResult: testResult, Package: pkg, Test: test, Output: buf.String()}
 }
 
 func parseTestEventLine(line []byte) *testEvent {

@@ -1,10 +1,8 @@
 package autotest
 
 import (
-	"errors"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/EndFirstCorp/execfactory"
 )
@@ -30,45 +28,42 @@ github.com/6degreeshealth/autotest/runner.go:123:	parsePercent		83.3%
 total:							(statements)		35.5%`
 
 func TestRunTests(t *testing.T) {
-	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
-		{CombinedOutputVal: []byte(testOutput)},
-		{CombinedOutputVal: []byte(coverageOutput)},
-	})
+	exec = execfactory.NewMockCreator([]execfactory.MockInstance{})
 	if err := RunTests("folder"); err != nil {
 		t.Fatal(err)
 	}
 	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
-		{CombinedOutputErr: errors.New("test")},
+		{SeparateOutputErr: []byte("test"), SeparateOutputExitCode: 2},
 	})
-	if err := RunTests("folder"); err == nil || err.Error() != "test" {
+	if err := RunTests("folder"); err == nil || err.Error() != "Error running build\ntest" {
 		t.Error("Expected to error at first runGoTool", err)
-	}
-	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
-		{CombinedOutputVal: []byte{}},
-		{CombinedOutputErr: errors.New("test")},
-	})
-	if err := RunTests("folder"); err == nil || err.Error() != "test" {
-		t.Error("Expected to error at second runGoTool", err)
 	}
 }
 
-func TestRunToTool(t *testing.T) {
+func TestFail(t *testing.T) {
+	t.Fatal("error")
+}
+
+func TestPrintEvents(t *testing.T) {
+	printTestEvents(getTestEvents([]byte(testOutput)))
+}
+
+func TestPrintCoverage(t *testing.T) {
+	printCoverage(getCoverage([]byte(coverageOutput)))
+}
+
+func TestRunGoTool(t *testing.T) {
 	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
-		{CombinedOutputErr: errors.New("test")},
-		{CombinedOutputVal: []byte("hello")},
-		{CombinedOutputErr: &execfactory.ExitError{}},
+		{SeparateOutputErr: []byte("test"), SeparateOutputOut: []byte("out"), SeparateOutputExitCode: 1},
 	})
-	if _, err := runGoTool("folder", nil); err == nil || err.Error() != "test" {
-		t.Error("Expected correct error", err)
-	}
-	if out, err := runGoTool("folder", nil); err != nil || string(out) != "hello" {
-		t.Error("Expected correct error", err, string(out))
+	if out, err, code := runGoTool("folder", nil); code != 1 || string(out) != "out" || string(err) != "test" {
+		t.Error("Expected correct error", code)
 	}
 }
 
 func TestGetTestEvents(t *testing.T) {
-	if events := getTestEvents([]byte(testOutput)); len(events) != 8 {
-		t.Error("expected to have parsed 8 lines", len(events))
+	if events := getTestEvents([]byte(testOutput)); len(events) != 2 || events[0].Package != "github.com/6degreeshealth/autotest/cmd" || events[0].Test != "TestHi" || events[1].Package != "github.com/6degreeshealth/autotest/cmd" || events[1].Test != "" {
+		t.Error("expected to have parsed 2 lines", events)
 	}
 }
 
@@ -81,17 +76,17 @@ func TestParseTestEventLine(t *testing.T) {
 		{
 			"Run action",
 			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
+			&testEvent{Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
 		},
 		{
 			"Output action",
 			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"},
+			&testEvent{Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"},
 		},
 		{
 			"Test pass action",
-			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":0}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Elapsed: 0},
+			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":10}`,
+			&testEvent{Elapsed: 10, Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
 		},
 		{
 			"Bare line",
