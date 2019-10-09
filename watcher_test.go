@@ -14,13 +14,18 @@ func TestWatch(t *testing.T) {
 	os.MkdirAll("testdata", 0755)
 	var folderLock sync.Mutex
 	folderCount := make(map[string]int16)
-	folderChanged := func(folder string) {
+	printCount := 0
+	folderChanged := func(folder string) *TestResult {
 		folderLock.Lock()
 		folderCount[folder] = folderCount[folder] + 1
 		folderLock.Unlock()
+		return nil
+	}
+	print := func(res *TestResult) {
+		printCount++
 	}
 
-	go Watch("testdata", folderChanged)
+	go Watch("testdata", folderChanged, print)
 	for i := 0; i < 100; i++ {
 		path := path.Join("testdata", fmt.Sprintf("test%d.go", i))
 		f, err := os.Create(path)

@@ -12,10 +12,26 @@ import (
 	"github.com/logrusorgru/aurora"
 )
 
-func printTestEvents(groupedEvents []groupedTestEvent, showAll bool) {
+// PrintTest is used to print a single test results to the console
+func PrintTest(result *TestResult) {
+	margin := (80 - len(result.Folder)) / 2
+	fmt.Println()
+	fmt.Println(strings.Repeat("-", margin), result.Folder, strings.Repeat("-", margin))
+	if result.BuildFail != nil {
+		printBuildFailure(result.BuildFail)
+	}
+	if len(result.Status) != 0 {
+		printTestEvents(result.Status, result.TestFail)
+	}
+	if len(result.Coverage) != 0 {
+		printCoverage(result.Coverage)
+	}
+}
+
+func printTestEvents(groupedEvents []TestStatus, showAll bool) {
 	groupedEvents, maxPackageLen, maxTestLen := getFilteredListAndLengths(groupedEvents, showAll)
 	if len(groupedEvents) != 0 {
-		printHeader("--- TestResults ---", "Time  ", rightPad("Package", maxPackageLen), rightPad("Test", maxTestLen), "Status")
+		printHeader("--- Test Results ---", "Time  ", rightPad("Package", maxPackageLen), rightPad("Test", maxTestLen), "Status")
 	}
 	for _, event := range groupedEvents {
 		fmt.Println(printElapsedTime(event.Elapsed), rightPad(getPackage(event.Package), maxPackageLen), aurora.BrightWhite(rightPad(getTestName(event.Test), maxTestLen)), printTestResult(event.TestResult), printOutput(event.Output))
@@ -34,10 +50,10 @@ func printHeader(header string, columns ...string) {
 	fmt.Println()
 }
 
-func getFilteredListAndLengths(groupedEvents []groupedTestEvent, showAll bool) ([]groupedTestEvent, int, int) {
+func getFilteredListAndLengths(groupedEvents []TestStatus, showAll bool) ([]TestStatus, int, int) {
 	maxPackageLen := 0
 	maxTestLen := len("[package]")
-	filteredList := []groupedTestEvent{}
+	filteredList := []TestStatus{}
 	for _, event := range groupedEvents {
 		if event.Test == "" || showAll || event.Elapsed > 0.1 {
 			filteredList = append(filteredList, event)
@@ -125,27 +141,21 @@ func printOutput(output string) string {
 	return ""
 }
 
-func printCoverage(coverageItems []coverage) {
+func printCoverage(coverageItems []FunctionCoverage) {
 	maxFilenameLen, maxFunctionLen, not100Percent := getCoverageLengths(coverageItems)
 	if not100Percent == 0 {
 		return
 	}
 	printHeader("--- Code Coverage ---", rightPad("Filename", maxFilenameLen), rightPad("Function", maxFunctionLen), "Coverage")
-	hundredPercenters := []string{}
 	for _, coverage := range coverageItems {
 		if coverage.CoveragePercent == 100 {
-			hundredPercenters = append(hundredPercenters, coverage.Function)
 			continue
 		}
 		fmt.Println(rightPad(coverage.Filename, maxFilenameLen), rightPad(coverage.Function, maxFunctionLen), printPercent(float64(coverage.CoveragePercent)))
 	}
-	if len(hundredPercenters) > 0 {
-		fmt.Println()
-		fmt.Println(aurora.Green("100% coverage functions:"), hundredPercenters)
-	}
 }
 
-func getCoverageLengths(coverageItems []coverage) (int, int, int) {
+func getCoverageLengths(coverageItems []FunctionCoverage) (int, int, int) {
 	var maxFilenameLen, maxFunctionLen, not100Percent int
 	for _, coverage := range coverageItems {
 		if l := len(coverage.Filename); l > maxFilenameLen {

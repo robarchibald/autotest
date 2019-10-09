@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	autotest.Watch(".", autotest.RunTests)
+	autotest.Watch(".", autotest.RunTests, autotest.PrintTest)
 }

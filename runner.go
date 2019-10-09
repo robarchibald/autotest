@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,12 +15,29 @@ import (
 var runCoverageArgs = []string{"test", "-json", "-short", "-coverprofile", "cover.out", "-timeout", "5s"}
 var getCoverageArgs = []string{"tool", "cover", "-func=cover.out"}
 
-type groupedTestEvent struct {
+// TestResult contains the full results of a test run
+type TestResult struct {
+	Folder    string
+	BuildFail []byte
+	TestFail  bool
+	Status    []TestStatus
+	Coverage  []FunctionCoverage
+}
+
+// TestStatus contains the status for a single test run
+type TestStatus struct {
 	Elapsed    float64
 	Package    string
 	Test       string
 	TestResult string
 	Output     string
+}
+
+// FunctionCoverage contains the code coverage for a function
+type FunctionCoverage struct {
+	Filename        string
+	Function        string
+	CoveragePercent float32
 }
 
 type testEvent struct {
@@ -33,30 +49,24 @@ type testEvent struct {
 	Output  string
 }
 
-type coverage struct {
-	Filename        string
-	Function        string
-	CoveragePercent float32
-}
-
 var exec = execfactory.NewOSCreator()
 
 // RunTests will run a new set of tests whenever a file changes
-func RunTests(folder string) {
-	fmt.Print("\033[2J")
+func RunTests(folder string) *TestResult {
+	result := &TestResult{Folder: folder}
 	out, exitCode := runGoTool(folder, runCoverageArgs)
 	if exitCode == 2 { // build failure
-		printBuildFailure(out)
-		return
+		result.BuildFail = out
+		return result
 	}
-	printTestEvents(getTestEvents(out), exitCode != 0)
-
+	result.TestFail = exitCode != 0
+	result.Status = getTestEvents(out)
 	if exitCode != 0 { // skip coverage
-		return
+		return result
 	}
 	out, _ = runGoTool(folder, getCoverageArgs)
-	fmt.Println()
-	printCoverage(getCoverage(out))
+	result.Coverage = getCoverage(out)
+	return result
 }
 
 func hasAnyPrefix(input string, prefixes []string) bool {
@@ -76,7 +86,7 @@ func runGoTool(folder string, args []string) ([]byte, int) {
 	return out, exitCode
 }
 
-func getTestEvents(output []byte) []groupedTestEvent {
+func getTestEvents(output []byte) []TestStatus {
 	results := []testEvent{}
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
@@ -85,7 +95,7 @@ func getTestEvents(output []byte) []groupedTestEvent {
 	return groupTestEvents(results)
 }
 
-func groupTestEvents(events []testEvent) []groupedTestEvent {
+func groupTestEvents(events []testEvent) []TestStatus {
 	type packageTest struct {
 		Package string
 		Test    string
@@ -101,14 +111,14 @@ func groupTestEvents(events []testEvent) []groupedTestEvent {
 		grouped[pt] = append(grouped[pt], event)
 	}
 
-	orderedAndGrouped := []groupedTestEvent{}
+	orderedAndGrouped := []TestStatus{}
 	for _, test := range orderedTests {
 		orderedAndGrouped = append(orderedAndGrouped, *getGroupedTestEvent(grouped[test]))
 	}
 	return orderedAndGrouped
 }
 
-func getGroupedTestEvent(events []testEvent) *groupedTestEvent {
+func getGroupedTestEvent(events []testEvent) *TestStatus {
 	var pkg, test, testResult, output string
 	var elapsed float64
 	var buf strings.Builder
@@ -138,7 +148,7 @@ func getGroupedTestEvent(events []testEvent) *groupedTestEvent {
 			buf.WriteString("\n")
 		}
 	}
-	return &groupedTestEvent{Elapsed: elapsed, TestResult: testResult, Package: pkg, Test: test, Output: strings.TrimSpace(buf.String())}
+	return &TestStatus{Elapsed: elapsed, TestResult: testResult, Package: pkg, Test: test, Output: strings.TrimSpace(buf.String())}
 }
 
 func parseTestEventLine(line []byte) *testEvent {
@@ -152,13 +162,13 @@ func parseTestEventLine(line []byte) *testEvent {
 	return event
 }
 
-func getCoverage(output []byte) []coverage {
-	results := []coverage{}
+func getCoverage(output []byte) []FunctionCoverage {
+	results := []FunctionCoverage{}
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
 		filename, funcName, funcPercent := parseCoverageLine(line)
-		results = append(results, coverage{
+		results = append(results, FunctionCoverage{
 			Filename:        filename,
 			Function:        funcName,
 			CoveragePercent: funcPercent,
