@@ -2,7 +2,6 @@ package autotest
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,7 @@ import (
 )
 
 // Watch begins polling for changes in the specified folder and runs fileProcessor each time a file is changed
-func Watch(folder string, fileProcessor func(string) error) error {
+func Watch(folder string, fileProcessor func(string)) error {
 	fileReadyToProcess := make(chan string)
 	debouncedChange := debounceChange(800*time.Millisecond, fileReadyToProcess)
 
@@ -32,9 +31,7 @@ func Watch(folder string, fileProcessor func(string) error) error {
 			case event := <-w.Event:
 				debouncedChange(event)
 			case filename := <-fileReadyToProcess:
-				if err := fileProcessor(filename); err != nil {
-					log.Println(err)
-				}
+				fileProcessor(filename)
 			case <-w.Closed:
 				return
 			}

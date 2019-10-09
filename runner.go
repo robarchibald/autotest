@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/EndFirstCorp/execfactory"
 )
@@ -24,6 +25,7 @@ type groupedTestEvent struct {
 }
 
 type testEvent struct {
+	Time    time.Time
 	Action  string
 	Package string
 	Test    string
@@ -40,24 +42,21 @@ type coverage struct {
 var exec = execfactory.NewOSCreator()
 
 // RunTests will run a new set of tests whenever a file changes
-func RunTests(folder string) error {
-	fmt.Println("Changed folder:", folder)
-	out, err, exitCode := runGoTool(folder, runCoverageArgs)
+func RunTests(folder string) {
+	fmt.Print("\033[2J")
+	out, exitCode := runGoTool(folder, runCoverageArgs)
 	if exitCode == 2 { // build failure
-		return fmt.Errorf("Error running build\n%v", string(err))
+		printBuildFailure(out)
+		return
 	}
-	printTestEvents(getTestEvents(out))
+	printTestEvents(getTestEvents(out), exitCode != 0)
 
-	out, _, _ = runGoTool(folder, getCoverageArgs)
+	if exitCode != 0 { // skip coverage
+		return
+	}
+	out, _ = runGoTool(folder, getCoverageArgs)
+	fmt.Println()
 	printCoverage(getCoverage(out))
-
-	return nil
-}
-
-func printTestEvents(groupedEvents []groupedTestEvent) {
-	for _, event := range groupedEvents {
-		fmt.Println(event.Elapsed, event.Package, event.Test, event.TestResult, strings.TrimSpace(event.Output))
-	}
 }
 
 func hasAnyPrefix(input string, prefixes []string) bool {
@@ -69,18 +68,12 @@ func hasAnyPrefix(input string, prefixes []string) bool {
 	return false
 }
 
-func printCoverage(coverageItems []coverage) {
-	for _, coverage := range coverageItems {
-		fmt.Println(coverage)
-	}
-}
-
-func runGoTool(folder string, args []string) ([]byte, []byte, int) {
+func runGoTool(folder string, args []string) ([]byte, int) {
 	var exitCode int
 	cmd := exec.Command("go", args...)
 	cmd.SetDir(folder)
-	out, err, exitCode := cmd.SeparateOutput()
-	return out, err, exitCode
+	out, exitCode := cmd.SimpleOutput()
+	return out, exitCode
 }
 
 func getTestEvents(output []byte) []groupedTestEvent {
@@ -116,16 +109,24 @@ func groupTestEvents(events []testEvent) []groupedTestEvent {
 }
 
 func getGroupedTestEvent(events []testEvent) *groupedTestEvent {
-	var pkg, test, testResult string
+	var pkg, test, testResult, output string
 	var elapsed float64
 	var buf strings.Builder
-	for _, event := range events {
+	var start time.Time
+	for i, event := range events {
 		pkg = event.Package
 		test = event.Test
+		output = strings.TrimSpace(event.Output)
+		if i == 0 {
+			start = event.Time
+		}
+		if i == len(events)-1 { // get elapsed time. Overwritten if elapsed is actually provided
+			elapsed = event.Time.Sub(start).Seconds()
+		}
 		if event.Action == "run" {
 			continue
 		}
-		if event.Action == "output" && hasAnyPrefix(event.Output, []string{"===", "---", "PASS", "ok  \t", "FAIL", "SKIPPED"}) {
+		if event.Action == "output" && hasAnyPrefix(output, []string{"===", "---", "PASS", "ok  \t", "FAIL", "SKIP"}) {
 			continue
 		}
 		if event.Action == "pass" || event.Action == "skip" || event.Action == "fail" {
@@ -133,10 +134,11 @@ func getGroupedTestEvent(events []testEvent) *groupedTestEvent {
 			elapsed = event.Elapsed
 		}
 		if event.Action == "output" {
-			buf.WriteString(event.Output)
+			buf.WriteString(output)
+			buf.WriteString("\n")
 		}
 	}
-	return &groupedTestEvent{Elapsed: elapsed, TestResult: testResult, Package: pkg, Test: test, Output: buf.String()}
+	return &groupedTestEvent{Elapsed: elapsed, TestResult: testResult, Package: pkg, Test: test, Output: strings.TrimSpace(buf.String())}
 }
 
 func parseTestEventLine(line []byte) *testEvent {

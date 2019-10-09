@@ -14,11 +14,10 @@ func TestWatch(t *testing.T) {
 	os.MkdirAll("testdata", 0755)
 	var folderLock sync.Mutex
 	folderCount := make(map[string]int16)
-	folderChanged := func(folder string) error {
+	folderChanged := func(folder string) {
 		folderLock.Lock()
 		folderCount[folder] = folderCount[folder] + 1
 		folderLock.Unlock()
-		return nil
 	}
 
 	go Watch("testdata", folderChanged)
