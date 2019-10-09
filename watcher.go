@@ -2,7 +2,9 @@ package autotest
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -17,7 +19,14 @@ func Watch(folder string, fileProcessor func(string) *TestResult, printProcessor
 	testsReadyToPrint := make(chan *TestResult)  // print one at a time
 	debouncedChange := debounceChange(800*time.Millisecond, fileReadyToProcess)
 
-	folders := getGoFolders(folder)
+	folder, err := filepath.Abs(folder)
+	if err != nil {
+		return err
+	}
+	folders, err := getGoFolders(folder)
+	if err != nil {
+		return err
+	}
 	w, err := getWatcher(folders)
 	if err != nil {
 		return err
@@ -57,22 +66,27 @@ func getWatcher(folders []string) (*watcher.Watcher, error) {
 	return w, nil
 }
 
-func getGoFolders(root string) []string {
-	fmt.Println("reading folders")
-	goFolders := map[string]bool{}
-	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if !isGoFile(path) {
-			return nil
-		}
-		folder, _ := filepath.Abs(path)
-		goFolders[filepath.Dir(folder)] = true
-		return nil
-	})
+func getGoFolders(folder string) ([]string, error) {
 	folders := []string{}
-	for folder := range goFolders {
-		folders = append(folders, folder)
+	files, err := ioutil.ReadDir(folder)
+	if err != nil {
+		return folders, err
 	}
-	return folders
+	gotFolder := false
+	for _, file := range files {
+		if file.IsDir() && !strings.HasPrefix(file.Name(), ".") && file.Name() != "node_modules" {
+			subFolders, err := getGoFolders(path.Join(folder, file.Name()))
+			if err != nil {
+				return folders, err
+			}
+			folders = append(folders, subFolders...)
+		}
+		if !gotFolder && isGoFile(file.Name()) {
+			folders = append(folders, folder)
+			gotFolder = true
+		}
+	}
+	return folders, nil
 }
 
 // debounceChange marks a file as ready to process after remaining unchanged for a given duration.
