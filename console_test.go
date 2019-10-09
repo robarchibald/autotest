@@ -1,6 +1,9 @@
 package autotest
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 var testOutput = `{"Time":"2019-09-25T18:24:29.864601Z","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}
 {"Time":"2019-09-25T18:24:29.864909Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}
@@ -29,7 +32,11 @@ var buildFailure2 = `# github.com/6degreeshealth/autotest
 ../console.go:66:2: syntax error: unexpected x after top level declaration`
 
 func TestPrintEvents(t *testing.T) {
-	printTestEvents(getTestEvents([]byte(testOutput)), true)
+	events := []TestStatus{
+		{Elapsed: .101, Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", TestResult: "pass"},
+		{Elapsed: .119, Package: "github.com/6degreeshealth/autotest/cmd", TestResult: "pass"},
+	}
+	printTestEvents(events, true)
 }
 
 func TestPrintCoverage(t *testing.T) {
@@ -37,5 +44,6 @@ func TestPrintCoverage(t *testing.T) {
 }
 
 func TestPrintBuildFailure(t *testing.T) {
-	printBuildFailure([]byte(buildFailure))
+	printBuildFailure(errors.New(buildFailure))
+	printBuildFailure(errors.New(buildFailure2))
 }

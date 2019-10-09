@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,11 +18,10 @@ var getCoverageArgs = []string{"tool", "cover", "-func=cover.out"}
 
 // TestResult contains the full results of a test run
 type TestResult struct {
-	Folder    string
-	BuildFail []byte
-	TestFail  bool
-	Status    []TestStatus
-	Coverage  []FunctionCoverage
+	Folder   string
+	Error    error
+	Status   []TestStatus
+	Coverage []FunctionCoverage
 }
 
 // TestStatus contains the status for a single test run
@@ -53,15 +53,10 @@ var exec = execfactory.NewOSCreator()
 
 // RunTests will run a new set of tests whenever a file changes
 func RunTests(folder string) *TestResult {
+	out, _ := runGoTool(folder, runCoverageArgs)
 	result := &TestResult{Folder: folder}
-	out, exitCode := runGoTool(folder, runCoverageArgs)
-	if exitCode == 2 { // build failure
-		result.BuildFail = out
-		return result
-	}
-	result.TestFail = exitCode != 0
-	result.Status = getTestEvents(out)
-	if exitCode != 0 { // skip coverage
+	result.Status, result.Error = getTestEvents(out)
+	if result.Error != nil { // skip coverage
 		return result
 	}
 	out, _ = runGoTool(folder, getCoverageArgs)
@@ -86,13 +81,17 @@ func runGoTool(folder string, args []string) ([]byte, int) {
 	return out, exitCode
 }
 
-func getTestEvents(output []byte) []TestStatus {
+func getTestEvents(output []byte) ([]TestStatus, error) {
 	results := []testEvent{}
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
-		results = append(results, *parseTestEventLine(scanner.Bytes()))
+		line, ok := parseTestEventLine(scanner.Bytes())
+		if !ok {
+			return nil, fmt.Errorf(string(output))
+		}
+		results = append(results, *line)
 	}
-	return groupTestEvents(results)
+	return groupTestEvents(results), nil
 }
 
 func groupTestEvents(events []testEvent) []TestStatus {
@@ -151,15 +150,12 @@ func getGroupedTestEvent(events []testEvent) *TestStatus {
 	return &TestStatus{Elapsed: elapsed, TestResult: testResult, Package: pkg, Test: test, Output: strings.TrimSpace(buf.String())}
 }
 
-func parseTestEventLine(line []byte) *testEvent {
+func parseTestEventLine(line []byte) (*testEvent, bool) {
 	event := &testEvent{}
-	if err := json.Unmarshal(line, &event); err != nil {
-		lineStr := strings.TrimSpace(string(line))
-		if lineStr != "" {
-			return &testEvent{Output: string(line)}
-		}
+	if err := json.Unmarshal(line, event); err != nil {
+		return event, false
 	}
-	return event
+	return event, true
 }
 
 func getCoverage(output []byte) []FunctionCoverage {

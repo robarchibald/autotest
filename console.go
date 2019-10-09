@@ -2,7 +2,6 @@ package autotest
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"math"
 	"regexp"
@@ -17,11 +16,11 @@ func PrintTest(result *TestResult) {
 	margin := (80 - len(result.Folder)) / 2
 	fmt.Println()
 	fmt.Println(strings.Repeat("-", margin), result.Folder, strings.Repeat("-", margin))
-	if result.BuildFail != nil {
-		printBuildFailure(result.BuildFail)
+	if result.Error != nil {
+		printBuildFailure(result.Error)
 	}
 	if len(result.Status) != 0 {
-		printTestEvents(result.Status, result.TestFail)
+		printTestEvents(result.Status, result.Error != nil)
 	}
 	if len(result.Coverage) != 0 {
 		printCoverage(result.Coverage)
@@ -70,8 +69,8 @@ func getFilteredListAndLengths(groupedEvents []TestStatus, showAll bool) ([]Test
 
 var buildFailParse = regexp.MustCompile(`(^.*?):(\d*):(\d*):(.*)$`) // <file info><line number>:<column number>:<error message>
 
-func printBuildFailure(out []byte) {
-	r := bufio.NewScanner(bytes.NewReader(out))
+func printBuildFailure(err error) {
+	r := bufio.NewScanner(strings.NewReader(err.Error()))
 	for r.Scan() {
 		line := r.Text()
 		if hasAnyPrefix(line, []string{"#", "FAIL"}) {

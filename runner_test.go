@@ -27,47 +27,44 @@ func TestRunGoTool(t *testing.T) {
 }
 
 func TestGetTestEvents(t *testing.T) {
-	if events := getTestEvents([]byte(testOutput)); len(events) != 2 || events[0].Package != "github.com/6degreeshealth/autotest/cmd" || events[0].Test != "TestHi" || events[1].Package != "github.com/6degreeshealth/autotest/cmd" || events[1].Test != "" {
+	if events, _ := getTestEvents([]byte(testOutput)); len(events) != 2 || events[0].Package != "github.com/6degreeshealth/autotest/cmd" || events[0].Test != "TestHi" || events[1].Package != "github.com/6degreeshealth/autotest/cmd" || events[1].Test != "" {
 		t.Error("expected to have parsed 2 lines", events)
 	}
 }
 
 func TestParseTestEventLine(t *testing.T) {
 	tests := []struct {
-		name string
-		line string
-		want *testEvent
+		name     string
+		line     string
+		wantTest *testEvent
+		wantOk   bool
 	}{
 		{
 			"Run action",
 			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"}, true,
 		},
 		{
 			"Output action",
 			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"},
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"}, true,
 		},
 		{
 			"Test pass action",
 			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":10}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Elapsed: 10, Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"},
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Elapsed: 10, Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"}, true,
 		},
-		{
-			"Bare line",
-			"bare line",
-			&testEvent{Output: "bare line"},
-		},
-		{
-			"Bogus JSON",
-			`{{}`,
-			&testEvent{Output: "{{}"},
-		},
+		{"Bare line", "bare line", &testEvent{}, false},
+		{"Bogus JSON", `{{}`, &testEvent{}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := parseTestEventLine([]byte(tt.line)); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseTestEventLine() = \n%v, want \n%v", got, tt.want)
+			gotTest, gotOk := parseTestEventLine([]byte(tt.line))
+			if !reflect.DeepEqual(gotTest, tt.wantTest) {
+				t.Errorf("parseTestEventLine() = \n%v, wantTest \n%v", gotTest, tt.wantTest)
+			}
+			if gotOk != tt.wantOk {
+				t.Errorf("parseTestEventLine() = \n%v, wantOk \n%v", gotOk, tt.wantOk)
 			}
 		})
 	}
