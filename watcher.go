@@ -14,8 +14,9 @@ import (
 )
 
 // Watch begins polling for changes in the specified folder and runs RunTests each time a file is changed, and PrintTest each time a test is ready for printing
-func Watch(folder string, fileProcessor func(string) *TestResult, printProcessor func(*TestResult)) error {
+func Watch(folder string, fileProcessor func(string) *TestResult, tracker func(*TestResult) *TestResult, printProcessor func(*TestResult)) error {
 	fileReadyToProcess := make(chan string, 100) // run 100 tests at once
+	testsToTrack := make(chan *TestResult, 100)  // track tests as they come in
 	testsReadyToPrint := make(chan *TestResult)  // print one at a time
 	debouncedChange := debounceChange(800*time.Millisecond, fileReadyToProcess)
 
@@ -39,7 +40,13 @@ func Watch(folder string, fileProcessor func(string) *TestResult, printProcessor
 				debouncedChange(&event)
 			case filename := <-fileReadyToProcess:
 				go func() {
-					testsReadyToPrint <- fileProcessor(filename)
+					testsToTrack <- fileProcessor(filename)
+				}()
+			case test := <-testsToTrack:
+				go func() {
+					if print := tracker(test); print != nil {
+						testsReadyToPrint <- print
+					}
 				}()
 			case test := <-testsReadyToPrint:
 				printProcessor(test)

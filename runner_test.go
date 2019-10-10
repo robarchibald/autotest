@@ -30,6 +30,9 @@ func TestGetTestEvents(t *testing.T) {
 	if events, _ := getTestEvents([]byte(testOutput)); len(events) != 2 || events[0].Package != "github.com/6degreeshealth/autotest/cmd" || events[0].Test != "TestHi" || events[1].Package != "github.com/6degreeshealth/autotest/cmd" || events[1].Test != "" {
 		t.Error("expected to have parsed 2 lines", events)
 	}
+	if _, err := getTestEvents([]byte(buildFailure)); err == nil || err.Error() != buildFailure {
+		t.Error("expected to error matching failure", err)
+	}
 }
 
 func TestParseTestEventLine(t *testing.T) {

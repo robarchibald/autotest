@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/EndFirstCorp/execfactory"
 )
 
+var basicTestArgs = []string{"test", "-json", "-short", "-timeout", "5s"}
 var runCoverageArgs = []string{"test", "-json", "-short", "-coverprofile", "cover.out", "-timeout", "5s"}
 var getCoverageArgs = []string{"tool", "cover", "-func=cover.out"}
 
@@ -53,13 +55,12 @@ var exec = execfactory.NewOSCreator()
 
 // RunTests will run a new set of tests whenever a file changes
 func RunTests(folder string) *TestResult {
-	out, _ := runGoTool(folder, runCoverageArgs)
-	result := &TestResult{Folder: folder}
-	result.Status, result.Error = getTestEvents(out)
-	if result.Error != nil { // skip coverage
+	status, err := runGoTest(folder)
+	result := &TestResult{Folder: folder, Status: status, Error: err}
+	if err != nil { // skip coverage
 		return result
 	}
-	out, _ = runGoTool(folder, getCoverageArgs)
+	out, _ := runGoTool(folder, getCoverageArgs)
 	result.Coverage = getCoverage(out)
 	return result
 }
@@ -79,6 +80,29 @@ func runGoTool(folder string, args []string) ([]byte, int) {
 	cmd.SetDir(folder)
 	out, exitCode := cmd.SimpleOutput()
 	return out, exitCode
+}
+
+func runGoTest(folder string) ([]TestStatus, error) {
+	var err error
+	var testOut []byte
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		out, exitCode := runGoTool(folder, basicTestArgs) // without -coverprofile which can cause false success on build failure
+		if exitCode != 0 {
+			_, err = getTestEvents(out)
+		}
+		wg.Done()
+	}()
+	go func() {
+		testOut, _ = runGoTool(folder, runCoverageArgs)
+		wg.Done()
+	}()
+	wg.Wait()
+	if err != nil {
+		return nil, err
+	}
+	return getTestEvents(testOut)
 }
 
 func getTestEvents(output []byte) ([]TestStatus, error) {

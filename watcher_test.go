@@ -16,18 +16,16 @@ func TestWatch(t *testing.T) {
 	ioutil.WriteFile("testdata/test0.go", nil, 0644) // create go file so it'll be viewed as a go folder
 	var folderLock sync.Mutex
 	folderCount := make(map[string]int16)
-	printCount := 0
 	folderChanged := func(folder string) *TestResult {
 		folderLock.Lock()
 		folderCount[folder] = folderCount[folder] + 1
 		folderLock.Unlock()
 		return nil
 	}
-	print := func(res *TestResult) {
-		printCount++
-	}
+	track := func(res *TestResult) *TestResult { return nil }
+	print := func(res *TestResult) {}
 
-	go Watch("testdata", folderChanged, print)
+	go Watch("testdata", folderChanged, track, print)
 	time.Sleep(1 * time.Millisecond)
 	for i := 0; i < 100; i++ {
 		path := path.Join("testdata", fmt.Sprintf("test%d.go", i))
