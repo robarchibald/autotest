@@ -88,20 +88,24 @@ func TestParseCoverageLine(t *testing.T) {
 		line         string
 		wantFilename string
 		wantFuncName string
+		wantLine     int
 		wantPercent  float32
 	}{
-		{name: "Valid", line: "github.com/6degreeshealth/autotest/cmd/hi.go:3:		me		95.4%", wantFilename: "hi.go", wantFuncName: "me", wantPercent: float32(95.4)},
+		{name: "Valid", line: "github.com/6degreeshealth/autotest/cmd/hi.go:3:		me		95.4%", wantFilename: "hi.go", wantLine: 3, wantFuncName: "me", wantPercent: float32(95.4)},
 		{name: "Total", line: "total:							(statements)	50.0%", wantFilename: "total", wantFuncName: "(statements)", wantPercent: float32(50.0)},
 		{name: "Invalid", line: "test", wantFilename: "test", wantFuncName: "", wantPercent: float32(0)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotFilename, gotFuncName, gotPercent := parseCoverageLine(tt.line)
+			gotFilename, gotLine, gotFuncName, gotPercent := parseCoverageLine(tt.line)
 			if gotFilename != tt.wantFilename {
 				t.Errorf("parseCoverageLine() got filename = %v, want %v", gotFilename, tt.wantFilename)
 			}
 			if gotFuncName != tt.wantFuncName {
 				t.Errorf("parseCoverageLine() got funcName = %v, want %v", gotFuncName, tt.wantFuncName)
+			}
+			if gotLine != tt.wantLine {
+				t.Errorf("parseCoverageLine() got line = %v, want %v", gotLine, tt.wantLine)
 			}
 			if gotPercent != tt.wantPercent {
 				t.Errorf("parseCoverageLine() got percent = %v, want %v", gotPercent, tt.wantPercent)

@@ -55,14 +55,27 @@ func getResultDiff(v *tracking, current *TestResult) *TestResult {
 }
 
 func getCoverageDiff(first, current []FunctionCoverage) []FunctionCoverage {
-	coverageMap := make(map[string]float32)
+	type funcLocation struct {
+		Filename string
+		Function string
+	}
+	type lineCoverage struct {
+		LineNumber int
+		Coverage   float32
+	}
+	coverageMap := make(map[funcLocation][]lineCoverage)
 	for _, item := range first {
-		coverageMap[item.Function] = item.CoveragePercent
+		location := funcLocation{item.Filename, item.Function}
+		coverageMap[location] = append(coverageMap[location], lineCoverage{item.LineNumber, item.CoveragePercent})
 	}
 	differentCoverage := []FunctionCoverage{}
 	for _, item := range current {
-		if coveragePercent, ok := coverageMap[item.Function]; !ok || coveragePercent != item.CoveragePercent {
-			differentCoverage = append(differentCoverage, item)
+		if locations, ok := coverageMap[funcLocation{item.Filename, item.Function}]; ok {
+			for _, location := range locations {
+				if location.LineNumber == item.LineNumber && location.Coverage != item.CoveragePercent { // make this able to be slightly off
+					differentCoverage = append(differentCoverage, item)
+				}
+			}
 		}
 	}
 	return differentCoverage

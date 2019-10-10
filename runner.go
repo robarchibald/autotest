@@ -39,6 +39,7 @@ type TestStatus struct {
 type FunctionCoverage struct {
 	Filename        string
 	Function        string
+	LineNumber      int
 	CoveragePercent float32
 }
 
@@ -187,28 +188,31 @@ func getCoverage(output []byte) []FunctionCoverage {
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
-		filename, funcName, funcPercent := parseCoverageLine(line)
+		filename, lineNumber, funcName, funcPercent := parseCoverageLine(line)
 		results = append(results, FunctionCoverage{
 			Filename:        filename,
 			Function:        funcName,
+			LineNumber:      lineNumber,
 			CoveragePercent: funcPercent,
 		})
 	}
 	return results
 }
 
-func parseCoverageLine(line string) (string, string, float32) {
-	lastColonIndex := strings.LastIndex(line, ":")
-	if lastColonIndex == -1 {
-		return line, "", 0
+func parseCoverageLine(line string) (string, int, string, float32) {
+	var lineNumber int
+	items := strings.Split(line, ":")
+	filename := filepath.Base(items[0])
+	if c := len(items); c == 1 {
+		return filename, 0, "", 0
 	}
-	filename := getFilename(line)
-	funcName, funcPercent := parseNameAndPercent(strings.TrimSpace(line[lastColonIndex+1:]))
-	return filename, funcName, funcPercent
-}
-
-func getFilename(line string) string {
-	return filepath.Base(line[:strings.Index(line, ":")])
+	nameIndex := 1
+	if len(items) == 3 {
+		lineNumber, _ = strconv.Atoi(items[1])
+		nameIndex = 2
+	}
+	funcName, funcPercent := parseNameAndPercent(strings.TrimSpace(items[nameIndex]))
+	return filename, lineNumber, funcName, funcPercent
 }
 
 func parseNameAndPercent(nameAndPercent string) (string, float32) {
