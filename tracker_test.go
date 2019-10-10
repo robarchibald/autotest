@@ -26,4 +26,7 @@ func TestGetCoverageDiff(t *testing.T) {
 	if diff := getCoverageDiff([]FunctionCoverage{{Function: "1", CoveragePercent: 25}}, []FunctionCoverage{{Function: "1", CoveragePercent: 30}}); len(diff) != 1 || diff[0].CoveragePercent != 30 {
 		t.Error("Expected correct diff", diff)
 	}
+	if diff := getCoverageDiff([]FunctionCoverage{}, []FunctionCoverage{{Function: "1", CoveragePercent: 0}}); len(diff) != 1 || diff[0].CoveragePercent != 0 {
+		t.Error("Expected correct diff", diff)
+	}
 }

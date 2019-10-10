@@ -61,7 +61,7 @@ func getCoverageDiff(first, current []FunctionCoverage) []FunctionCoverage {
 	}
 	differentCoverage := []FunctionCoverage{}
 	for _, item := range current {
-		if coverageMap[item.Function] != item.CoveragePercent {
+		if coveragePercent, ok := coverageMap[item.Function]; !ok || coveragePercent != item.CoveragePercent {
 			differentCoverage = append(differentCoverage, item)
 		}
 	}
