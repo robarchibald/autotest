@@ -1,6 +1,11 @@
 package autotest
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestTrack(t *testing.T) {
 
@@ -23,10 +28,15 @@ func TestGetResultDiff(t *testing.T) {
 }
 
 func TestGetCoverageDiff(t *testing.T) {
-	if diff := getCoverageDiff([]FunctionCoverage{{Function: "1", CoveragePercent: 25}}, []FunctionCoverage{{Function: "1", CoveragePercent: 30}}); len(diff) != 1 || diff[0].CoveragePercent != 30 {
-		t.Error("Expected correct diff", diff)
-	}
-	if diff := getCoverageDiff([]FunctionCoverage{}, []FunctionCoverage{{Function: "1", CoveragePercent: 0}}); len(diff) != 1 || diff[0].CoveragePercent != 0 {
-		t.Error("Expected correct diff", diff)
-	}
+	diff := getCoverageDiff(
+		[]FunctionCoverage{{Function: "1", CoveragePercent: 25}},
+		[]FunctionCoverage{{Function: "1", CoveragePercent: 30}})
+	require.Equal(t, 1, len(diff))
+	assert.Equal(t, float32(30.0), diff[0].CoveragePercent)
+
+	diff = getCoverageDiff(
+		[]FunctionCoverage{},
+		[]FunctionCoverage{{Function: "1", CoveragePercent: 0}})
+	require.Equal(t, 1, len(diff))
+	assert.Equal(t, 0, diff[0].CoveragePercent)
 }

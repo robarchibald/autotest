@@ -1,49 +1,88 @@
 package autotest
 
 import (
-	"errors"
+	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/logrusorgru/aurora"
+	"github.com/stretchr/testify/assert"
 )
 
-var testOutput = `{"Time":"2019-09-25T18:24:29.864601Z","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}
-{"Time":"2019-09-25T18:24:29.864909Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}
-{"Time":"2019-09-25T18:24:29.864953Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"stuff\n"}
-{"Time":"2019-09-25T18:24:29.864977Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"--- PASS: TestHi (0.00s)\n"}
-{"Time":"2019-09-25T18:24:29.865004Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"PASS\n"}
-{"Time":"2019-09-25T18:24:29.865088Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Output":"ok  \tgithub.com/6degreeshealth/autotest/cmd\t0.006s\n"}
-{"Time":"2019-09-25T18:24:29.865105Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Elapsed":0.110}`
+var buildFailure = `# cover github.com/robarchibald/autotest
+2019/10/08 17:51:44 cover: autotest/console.go: autotest/console.go:66:2: expected ';', found x (and 2 more errors)
+FAIL    github.com/robarchibald/autotest [build failed]`
 
-var coverageOutput = `github.com/6degreeshealth/autotest/runner.go:37:	RunTests		100.0%
-github.com/6degreeshealth/autotest/runner.go:58:	runGoTool		100.0%
-github.com/6degreeshealth/autotest/runner.go:64:	getTestEvents		100.0%
-github.com/6degreeshealth/autotest/runner.go:73:	parseTestEventLine	100.0%
-github.com/6degreeshealth/autotest/runner.go:84:	getCoverage		100.0%
-github.com/6degreeshealth/autotest/runner.go:99:	parseCoverageLine	100.0%
-github.com/6degreeshealth/autotest/runner.go:109:	getFilename		100.0%
-github.com/6degreeshealth/autotest/runner.go:113:	parseNameAndPercent	100.0%
-github.com/6degreeshealth/autotest/runner.go:123:	parsePercent		83.3%
-total:							(statements)		35.5%`
-
-var buildFailure = `# cover github.com/6degreeshealth/autotest
-2019/10/08 17:51:44 cover: /Users/rob/Projects/autotest/console.go: /Users/rob/Projects/autotest/console.go:66:2: expected ';', found x (and 2 more errors)
-FAIL    github.com/6degreeshealth/autotest [build failed]`
-
-var buildFailure2 = `# github.com/6degreeshealth/autotest
-../console.go:66:2: syntax error: unexpected x after top level declaration`
-
-func TestPrintEvents(t *testing.T) {
-	events := []TestStatus{
-		{Elapsed: .101, Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", TestResult: "pass"},
-		{Elapsed: .119, Package: "github.com/6degreeshealth/autotest/cmd", TestResult: "pass"},
+func TestPrintTest(t *testing.T) {
+	header := "\n----------------------------------- folderName -----------------------------------\n"
+	tests := []struct {
+		name     string
+		result   *TestResult
+		wantText string
+	}{
+		// header should be 80 characters wide plus 2 spaces
+		{"just header",
+			&TestResult{Folder: "folderName"},
+			header},
+		{"error",
+			&TestResult{Folder: "folderName", Error: fmt.Errorf("file:3:4:fail")},
+			header + fmt.Sprintf("Error in file at line %s, column %s\n%s\n", aurora.Blue("3"), aurora.Blue("4"), aurora.Red("fail"))},
+		{"status",
+			&TestResult{Folder: "folderName", Status: []TestStatus{{Elapsed: 1.23, Package: "pkg", Test: "TestMe", TestResult: "fail", Output: ""}}},
+			header + "       " + aurora.Blue("--- Test Results ---").String() + "\n" +
+				getColumns([]string{"Time  ", "Package", "Test     ", "Status"}) + "\n" +
+				aurora.Red(formatFloat(1.23, 2)+"s ").String() + " pkg  " +
+				aurora.BrightWhite("TestMe   ").String() + " " + aurora.Red("FAIL").String() + " \n",
+		},
+		{"coverage",
+			&TestResult{Folder: "folderName", Coverage: []FunctionCoverage{{Filename: "file", Function: "func", LineNumber: 1, CoveragePercent: float32(1.12)}}},
+			header + "    " + aurora.Blue("--- Code Coverage ---").String() + "\n" +
+				getColumns([]string{"Filename", "Function", "Coverage"}) + "\n" +
+				"file func " + aurora.BrightRed("1.1%").String() + "\n",
+		},
 	}
-	printTestEvents(events, true)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &fakePrinter{}
+			Println = p.Println
+			Printf = p.Printf
+			Print = p.Print
+
+			PrintTest(tt.result)
+			assert.Equal(t, tt.wantText, p.printed.String())
+		})
+	}
 }
 
-func TestPrintCoverage(t *testing.T) {
-	printCoverage(getCoverage([]byte(coverageOutput)))
+func getColumns(columns []string) string {
+	var buf strings.Builder
+	for _, column := range columns {
+		buf.WriteString(fmt.Sprint(aurora.Gray(15, column+" ")))
+	}
+	return buf.String()
 }
 
 func TestPrintBuildFailure(t *testing.T) {
-	printBuildFailure(errors.New(buildFailure))
-	printBuildFailure(errors.New(buildFailure2))
+	p := &fakePrinter{}
+	Println = p.Println
+	Printf = p.Printf
+	Print = p.Print
+	printBuildFailure(fmt.Errorf(buildFailure))
+	assert.Equal(t,
+		fmt.Sprintf("Error in autotest/console.go at line %s, column %s\n%s\n", aurora.Blue("66"), aurora.Blue("2"), aurora.Red("expected ';', found x (and 2 more errors)")),
+		p.printed.String())
+}
+
+type fakePrinter struct {
+	printed strings.Builder
+}
+
+func (p *fakePrinter) Println(a ...interface{}) (n int, err error) {
+	return p.printed.WriteString(fmt.Sprintln(a...))
+}
+func (p *fakePrinter) Printf(format string, a ...interface{}) (n int, err error) {
+	return p.printed.WriteString(fmt.Sprintf(format, a...))
+}
+func (p *fakePrinter) Print(a ...interface{}) (n int, err error) {
+	return p.printed.WriteString(fmt.Sprint(a...))
 }

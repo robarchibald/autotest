@@ -11,11 +11,15 @@ import (
 	"github.com/logrusorgru/aurora"
 )
 
+var Println = fmt.Println
+var Printf = fmt.Printf
+var Print = fmt.Print
+
 // PrintTest is used to print a single test results to the console
 func PrintTest(result *TestResult) {
 	margin := (80 - len(result.Folder)) / 2
-	fmt.Println()
-	fmt.Println(strings.Repeat("-", margin), result.Folder, strings.Repeat("-", margin))
+	Println()
+	Println(strings.Repeat("-", margin), result.Folder, strings.Repeat("-", margin))
 	if result.Error != nil {
 		printBuildFailure(result.Error)
 	}
@@ -33,7 +37,7 @@ func printTestEvents(groupedEvents []TestStatus, showAll bool) {
 		printHeader("--- Test Results ---", "Time  ", rightPad("Package", maxPackageLen), rightPad("Test", maxTestLen), "Status")
 	}
 	for _, event := range groupedEvents {
-		fmt.Println(printElapsedTime(event.Elapsed), rightPad(getPackage(event.Package), maxPackageLen), aurora.BrightWhite(rightPad(getTestName(event.Test), maxTestLen)), printTestResult(event.TestResult), printOutput(event.Output))
+		Println(printElapsedTime(event.Elapsed), rightPad(getPackage(event.Package), maxPackageLen), aurora.BrightWhite(rightPad(getTestName(event.Test), maxTestLen)), printTestResult(event.TestResult), printOutput(event.Output))
 	}
 }
 
@@ -42,11 +46,11 @@ func printHeader(header string, columns ...string) {
 	for _, column := range columns {
 		totalWidth += len(column) + 1
 	}
-	fmt.Println(strings.Repeat(" ", (totalWidth-len(header))/2), aurora.Blue(header))
+	Println(strings.Repeat(" ", (totalWidth-len(header))/2), aurora.Blue(header))
 	for _, column := range columns {
-		fmt.Print(aurora.Gray(15, column+" "))
+		Print(aurora.Gray(15, column+" "))
 	}
-	fmt.Println()
+	Println()
 }
 
 func getFilteredListAndLengths(groupedEvents []TestStatus, showAll bool) ([]TestStatus, int, int) {
@@ -83,7 +87,7 @@ func printBuildFailure(err error) {
 			if lastColon != -1 {
 				pathInfo = strings.TrimSpace(pathInfo[lastColon+1:])
 			}
-			fmt.Printf("Error in %s at line %s, column %s\n%s\n", pathInfo, aurora.Blue(parsedLine[2]), aurora.Blue(parsedLine[3]), aurora.Red(strings.TrimSpace(parsedLine[4])))
+			Printf("Error in %s at line %s, column %s\n%s\n", pathInfo, aurora.Blue(parsedLine[2]), aurora.Blue(parsedLine[3]), aurora.Red(strings.TrimSpace(parsedLine[4])))
 		}
 	}
 }
@@ -150,7 +154,7 @@ func printCoverage(coverageItems []FunctionCoverage) {
 		if coverage.CoveragePercent == 100 {
 			continue
 		}
-		fmt.Println(rightPad(coverage.Filename, maxFilenameLen), rightPad(coverage.Function, maxFunctionLen), printPercent(float64(coverage.CoveragePercent)))
+		Println(rightPad(coverage.Filename, maxFilenameLen), rightPad(coverage.Function, maxFunctionLen), printPercent(float64(coverage.CoveragePercent)))
 	}
 }
 

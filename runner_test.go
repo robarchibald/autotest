@@ -1,6 +1,7 @@
 package autotest
 
 import (
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -8,13 +9,22 @@ import (
 	"github.com/EndFirstCorp/execfactory"
 )
 
+var testOutput = `{"Time":"2019-09-25T18:24:29.864601Z","Action":"run","Package":"github.com/robarchibald/autotest/cmd","Test":"TestHi"}
+{"Time":"2019-09-25T18:24:29.864909Z","Action":"output","Package":"github.com/robarchibald/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}
+{"Time":"2019-09-25T18:24:29.864953Z","Action":"output","Package":"github.com/robarchibald/autotest/cmd","Test":"TestHi","Output":"stuff\n"}
+{"Time":"2019-09-25T18:24:29.864977Z","Action":"output","Package":"github.com/robarchibald/autotest/cmd","Test":"TestHi","Output":"--- PASS: TestHi (0.00s)\n"}
+{"Time":"2019-09-25T18:24:29.865004Z","Action":"output","Package":"github.com/robarchibald/autotest/cmd","Output":"PASS\n"}
+{"Time":"2019-09-25T18:24:29.865088Z","Action":"output","Package":"github.com/robarchibald/autotest/cmd","Output":"ok  \tgithub.com/robarchibald/autotest/cmd\t0.006s\n"}
+{"Time":"2019-09-25T18:24:29.865105Z","Action":"pass","Package":"github.com/robarchibald/autotest/cmd","Elapsed":0.110}`
+
 func TestRunTests(t *testing.T) {
+	os.Mkdir("testdata", 0755)
 	exec = execfactory.NewMockCreator([]execfactory.MockInstance{})
-	RunTests("folder")
+	RunTests("folder", "testdata")
 	exec = execfactory.NewMockCreator([]execfactory.MockInstance{
 		{SimpleOutputOut: []byte("test"), SimpleOutputExitCode: 2},
 	})
-	RunTests("folder")
+	RunTests("folder", "testdata")
 }
 
 func TestRunGoTool(t *testing.T) {
@@ -27,7 +37,7 @@ func TestRunGoTool(t *testing.T) {
 }
 
 func TestGetTestEvents(t *testing.T) {
-	if events, _ := getTestEvents([]byte(testOutput)); len(events) != 2 || events[0].Package != "github.com/6degreeshealth/autotest/cmd" || events[0].Test != "TestHi" || events[1].Package != "github.com/6degreeshealth/autotest/cmd" || events[1].Test != "" {
+	if events, _ := getTestEvents([]byte(testOutput)); len(events) != 2 || events[0].Package != "github.com/robarchibald/autotest/cmd" || events[0].Test != "TestHi" || events[1].Package != "github.com/robarchibald/autotest/cmd" || events[1].Test != "" {
 		t.Error("expected to have parsed 2 lines", events)
 	}
 	if _, err := getTestEvents([]byte(buildFailure)); err == nil || err.Error() != buildFailure {
@@ -44,18 +54,18 @@ func TestParseTestEventLine(t *testing.T) {
 	}{
 		{
 			"Run action",
-			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"run","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "run", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"}, true,
+			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"run","Package":"github.com/robarchibald/autotest/cmd","Test":"TestHi"}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "run", Package: "github.com/robarchibald/autotest/cmd", Test: "TestHi"}, true,
 		},
 		{
 			"Output action",
-			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"output","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "output", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"}, true,
+			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"output","Package":"github.com/robarchibald/autotest/cmd","Test":"TestHi","Output":"=== RUN   TestHi\n"}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Action: "output", Package: "github.com/robarchibald/autotest/cmd", Test: "TestHi", Output: "=== RUN   TestHi\n"}, true,
 		},
 		{
 			"Test pass action",
-			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"pass","Package":"github.com/6degreeshealth/autotest/cmd","Test":"TestHi","Elapsed":10}`,
-			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Elapsed: 10, Action: "pass", Package: "github.com/6degreeshealth/autotest/cmd", Test: "TestHi"}, true,
+			`{"Time":"2019-09-25T18:24:00.000000Z","Action":"pass","Package":"github.com/robarchibald/autotest/cmd","Test":"TestHi","Elapsed":10}`,
+			&testEvent{Time: time.Date(2019, 9, 25, 18, 24, 0, 0, time.UTC), Elapsed: 10, Action: "pass", Package: "github.com/robarchibald/autotest/cmd", Test: "TestHi"}, true,
 		},
 		{"Bare line", "bare line", &testEvent{}, false},
 		{"Bogus JSON", `{{}`, &testEvent{}, false},
@@ -76,7 +86,7 @@ func TestParseTestEventLine(t *testing.T) {
 func TestGetCoverage(t *testing.T) {
 	lines := `line1
 	line2
-	github.com/6degreeshealth/autotest/cmd/hi.go:3:		me		95.4%`
+	github.com/robarchibald/autotest/cmd/hi.go:3:		me		95.4%`
 	if numLines := len(getCoverage([]byte(lines))); numLines != 3 {
 		t.Error("expected 3 coverage lines", numLines)
 	}
@@ -91,7 +101,7 @@ func TestParseCoverageLine(t *testing.T) {
 		wantLine     int
 		wantPercent  float32
 	}{
-		{name: "Valid", line: "github.com/6degreeshealth/autotest/cmd/hi.go:3:		me		95.4%", wantFilename: "hi.go", wantLine: 3, wantFuncName: "me", wantPercent: float32(95.4)},
+		{name: "Valid", line: "github.com/robarchibald/autotest/cmd/hi.go:3:		me		95.4%", wantFilename: "hi.go", wantLine: 3, wantFuncName: "me", wantPercent: float32(95.4)},
 		{name: "Total", line: "total:							(statements)	50.0%", wantFilename: "total", wantFuncName: "(statements)", wantPercent: float32(50.0)},
 		{name: "Invalid", line: "test", wantFilename: "test", wantFuncName: "", wantPercent: float32(0)},
 	}

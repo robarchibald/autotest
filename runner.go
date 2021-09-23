@@ -15,8 +15,14 @@ import (
 )
 
 var basicTestArgs = []string{"test", "-json", "-short", "-timeout", "5s"}
-var runCoverageArgs = []string{"test", "-json", "-short", "-coverprofile", "cover.out", "-timeout", "5s"}
-var getCoverageArgs = []string{"tool", "cover", "-func=cover.out"}
+
+func runCoverageArgs(tempDir string) []string {
+	return []string{"test", "-json", "-short", "-coverprofile", filepath.Join(tempDir, "cover.out"), "-timeout", "5s"}
+}
+
+func getCoverageArgs(tempDir string) []string {
+	return []string{"tool", "cover", "-func", filepath.Join(tempDir, "cover.out")}
+}
 
 // TestResult contains the full results of a test run
 type TestResult struct {
@@ -55,13 +61,13 @@ type testEvent struct {
 var exec = execfactory.NewOSCreator()
 
 // RunTests will run a new set of tests whenever a file changes
-func RunTests(folder string) *TestResult {
-	status, err := runGoTest(folder)
+func RunTests(folder, tempDir string) *TestResult {
+	status, err := runGoTest(folder, tempDir)
 	result := &TestResult{Folder: folder, Status: status, Error: err}
 	if err != nil { // skip coverage
 		return result
 	}
-	out, _ := runGoTool(folder, getCoverageArgs)
+	out, _ := runGoTool(folder, getCoverageArgs(tempDir))
 	result.Coverage = getCoverage(out)
 	return result
 }
@@ -83,7 +89,7 @@ func runGoTool(folder string, args []string) ([]byte, int) {
 	return out, exitCode
 }
 
-func runGoTest(folder string) ([]TestStatus, error) {
+func runGoTest(folder, tempDir string) ([]TestStatus, error) {
 	var err error
 	var testOut []byte
 	var wg sync.WaitGroup
@@ -96,7 +102,7 @@ func runGoTest(folder string) ([]TestStatus, error) {
 		wg.Done()
 	}()
 	go func() {
-		testOut, _ = runGoTool(folder, runCoverageArgs)
+		testOut, _ = runGoTool(folder, runCoverageArgs(tempDir))
 		wg.Done()
 	}()
 	wg.Wait()
